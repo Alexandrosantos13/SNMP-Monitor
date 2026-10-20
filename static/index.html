@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor SNMP · MikroTik</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="id">
+    <h1>Monitor SNMP</h1>
+    <p id="target">—</p>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="live" class="on">Tempo real</button>
+    <button role="tab" data-tab="hist">Histórico</button>
+    <button role="tab" data-tab="events">Eventos</button>
+    <button role="tab" data-tab="cfg">Configurações</button>
+  </nav>
+  <div id="pill" class="pill stopped">Parado</div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main>
+<!-- TEMPO REAL -->
+<section id="tab-live" class="panel">
+  <div class="toolbar">
+    <button id="bStart" class="primary">Iniciar</button>
+    <button id="bPause">Pausar</button>
+    <button id="bReset">Resetar</button>
+    <span class="hint">Resetar limpa apenas os gráficos desta sessão; o histórico gravado é mantido.</span>
+  </div>
+  <div class="readouts">
+    <div class="ro in"><span>Entrada (IN)</span><b id="rIn">—</b></div>
+    <div class="ro out"><span>Saída (OUT)</span><b id="rOut">—</b></div>
+    <div class="ro cpu"><span>CPU</span><b id="rCpu">—</b></div>
+    <div class="ro"><span>Última leitura</span><b id="rLast" class="small">—</b></div>
+  </div>
+  <div class="chartbox"><h2>Tráfego da interface <small id="ifLabel"></small></h2><div class="cv"><canvas id="cTraf"></canvas></div></div>
+  <div class="chartbox"><h2>Utilização da CPU</h2><div class="cv short"><canvas id="cCpu"></canvas></div></div>
+</section>
+
+<!-- HISTÓRICO -->
+<section id="tab-hist" class="panel" hidden>
+  <form id="histForm" class="toolbar wrap">
+    <label>Início <input type="datetime-local" id="hStart" step="1" required></label>
+    <label>Fim <input type="datetime-local" id="hEnd" step="1" required></label>
+    <button class="primary" type="submit">Aplicar período</button>
+    <span class="quick">
+      <button type="button" data-h="1">Última hora</button>
+      <button type="button" data-h="24">24 horas</button>
+      <button type="button" data-h="168">7 dias</button>
+    </span>
+  </form>
+  <p id="histInfo" class="summary"></p>
+  <div id="histEmpty" class="empty" hidden></div>
+  <div id="histCharts">
+    <div class="chartbox"><h2>Tráfego histórico</h2><div class="cv"><canvas id="hTraf"></canvas></div></div>
+    <div class="chartbox"><h2>CPU histórica</h2><div class="cv short"><canvas id="hCpu"></canvas></div></div>
+  </div>
+</section>
+
+<!-- EVENTOS -->
+<section id="tab-events" class="panel" hidden>
+  <div class="toolbar"><button id="evReload">Atualizar</button><span class="hint">Alertas, falhas SNMP/e-mail e recuperações (últimos 100).</span></div>
+  <table class="ev"><thead><tr><th>Horário</th><th>Tipo</th><th>Mensagem</th></tr></thead><tbody id="evBody"></tbody></table>
+  <div id="evEmpty" class="empty" hidden>Nenhum evento registrado ainda.</div>
+</section>
+
+<!-- CONFIGURAÇÕES -->
+<section id="tab-cfg" class="panel" hidden>
+  <form id="cfgForm" autocomplete="off">
+    <ul id="cfgErrors" class="errors" hidden></ul>
+
+    <fieldset>
+      <legend>Alertas</legend>
+      <div class="row checks">
+        <label class="chk"><input type="checkbox" id="aPopup"> Pop-up na tela</label>
+        <label class="chk"><input type="checkbox" id="aEmail"> E-mail</label>
+      </div>
+      <div class="grid">
+        <label>Limite de tráfego IN
+          <span class="join"><input type="number" id="tIn" min="0" step="any"><select id="uIn"></select></span>
+          <em>0 desativa. Aplicado separadamente a IN e OUT.</em></label>
+        <label>Limite de tráfego OUT
+          <span class="join"><input type="number" id="tOut" min="0" step="any"><select id="uOut"></select></span></label>
+        <label>Limite de CPU (%)
+          <input type="number" id="tCpu" min="0" max="100" step="any"><em>0 desativa.</em></label>
+        <label>Repetir alerta a cada (s)
+          <input type="number" id="cool" min="0" step="1"><em>Enquanto o limite continuar excedido. 0 = só na transição.</em></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Coleta</legend>
+      <div class="grid">
+        <label>Intervalo de coleta (s)
+          <input type="number" id="interval" min="0.5" step="any" required><em>Maior que zero.</em></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>E-mail de alerta</legend>
+      <div class="grid">
+        <label>Enviar para <input type="email" id="eTo" placeholder="voce@exemplo.com"></label>
+        <label>Servidor SMTP <input id="eHost"></label>
+        <label>Porta <input type="number" id="ePort" min="1"></label>
+        <label>Segurança <select id="eSec"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">Nenhuma</option></select></label>
+        <label>Usuário SMTP <input id="eUser"></label>
+        <label>Senha SMTP <input type="password" id="ePass" placeholder="(mantida se vazia)"></label>
+        <label>Remetente <input id="eFrom" placeholder="igual ao usuário se vazio"></label>
+      </div>
+      <button type="button" id="bTestMail">Enviar e-mail de teste</button> <span id="mailRes" class="res"></span>
+    </fieldset>
+
+    <fieldset>
+      <legend>Roteador e SNMP</legend>
+      <div class="grid">
+        <label>Endereço do roteador <input id="sHost" required></label>
+        <label>Porta <input type="number" id="sPort" min="1"></label>
+        <label>Versão <select id="sVer"><option value="2c">SNMPv2c</option><option value="3">SNMPv3</option></select></label>
+        <label>Interface monitorada
+          <span class="join"><input id="sIf" list="ifList" required><button type="button" id="bIfs">Detectar</button></span>
+          <datalist id="ifList"></datalist></label>
+        <label class="v2">Community (leitura) <input type="password" id="sComm"></label>
+        <label class="v3">Usuário v3 <input id="sUser"></label>
+        <label class="v3">Autenticação <select id="sAuth"><option>SHA</option><option>SHA256</option><option>SHA512</option><option>MD5</option><option>NONE</option></select></label>
+        <label class="v3">Senha de autenticação <input type="password" id="sAuthPw"></label>
+        <label class="v3">Criptografia <select id="sPriv"><option>AES</option><option>AES192</option><option>AES256</option><option>DES</option><option>NONE</option></select></label>
+        <label class="v3">Senha de criptografia <input type="password" id="sPrivPw"></label>
+        <label>Timeout (s) <input type="number" id="sTo" min="0.5" step="any"></label>
+        <label>Tentativas <input type="number" id="sRe" min="0"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="sim"> Modo simulação (dados sintéticos, sem roteador — só para desenvolvimento)</label>
+      <div><button type="button" id="bTestSnmp">Testar conexão SNMP</button> <span id="snmpRes" class="res"></span></div>
+    </fieldset>
+
+    <div class="toolbar"><button class="primary" type="submit">Salvar configurações</button><span id="saveRes" class="res"></span></div>
+  </form>
+</section>
+</main>
+
+<dialog id="popup" aria-labelledby="pTitle">
+  <h2 id="pTitle">Alerta de limite</h2>
+  <dl id="pBody"></dl>
+  <p id="pMore" class="hint"></p>
+  <button id="pClose" class="primary" autofocus>Entendi</button>
+</dialog>
+<div id="toasts" aria-live="polite"></div>
+
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

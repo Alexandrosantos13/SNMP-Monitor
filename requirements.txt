@@ -1,0 +1,3 @@
+flask>=3.0
+pysnmp>=7.1
+cryptography>=47     # necessário ao SNMPv3 com AES/DES (pysnmp 7 usa cryptography.hazmat.decrepit)

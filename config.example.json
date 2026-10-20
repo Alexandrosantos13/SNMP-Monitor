@@ -1,0 +1,20 @@
+{
+  "snmp": {
+    "host": "192.168.88.1",
+    "port": 161,
+    "version": "2c",
+    "community": "monitor-lab",
+    "v3_user": "",
+    "v3_auth_protocol": "SHA",
+    "v3_auth_password": "",
+    "v3_priv_protocol": "AES",
+    "v3_priv_password": "",
+    "interface": "ether1",
+    "timeout": 2,
+    "retries": 1
+  },
+  "collect_interval": 5,
+  "alerts": { "popup": true, "email": false, "threshold_in_bps": 0, "threshold_out_bps": 0, "threshold_cpu": 0, "cooldown_s": 300 },
+  "email": { "to": "", "smtp_host": "smtp.gmail.com", "smtp_port": 587, "security": "starttls", "smtp_user": "", "smtp_password": "", "from": "" },
+  "simulate": false
+}
